@@ -57,6 +57,9 @@ from utils import (
 )
 from simple_ik import simple_ik_solver
 
+# Add submodule path
+sys.path.append(os.path.join(os.path.dirname(__file__), "SMPL-Anthropometry-master"))
+from measure import MeasureBody
 
 isMacOS = (platform.system() == "Darwin")
 
@@ -234,6 +237,7 @@ class AppWindow:
     MENU_EXPORT = 2
     MENU_QUIT = 3
     MENU_SAVE = 4
+    MENU_EXPORT_OBJ = 5
     MENU_SHOW_SETTINGS = 11
     MENU_ABOUT = 21
 
@@ -250,6 +254,12 @@ class AppWindow:
         'SMPLX': ['neutral', 'male', 'female'],
         'MANO': ['neutral'],
         'FLAME': ['neutral', 'male', 'female']
+    }
+    BETA_LABELS = {
+        'SMPL': ['Stazza/Altezza', 'Peso/Larghezza', 'Proporzioni', 'Tronco/Gambe', 'Spalle', 'Dettaglio 6', 'Dettaglio 7', 'Dettaglio 8', 'Dettaglio 9', 'Dettaglio 10'],
+        'SMPLX': ['Stazza/Altezza', 'Peso/Larghezza', 'Proporzioni', 'Tronco/Gambe', 'Spalle', 'Dettaglio 6', 'Dettaglio 7', 'Dettaglio 8', 'Dettaglio 9', 'Dettaglio 10'],
+        'MANO': ['Dim. Mano', 'Spessore Dita', 'Dettaglio 3', 'Dettaglio 4', 'Dettaglio 5', 'Dettaglio 6', 'Dettaglio 7', 'Dettaglio 8', 'Dettaglio 9', 'Dettaglio 10'],
+        'FLAME': ['Dim. Testa', 'Rotondità Viso', 'Dettaglio 3', 'Dettaglio 4', 'Dettaglio 5', 'Dettaglio 6', 'Dettaglio 7', 'Dettaglio 8', 'Dettaglio 9', 'Dettaglio 10'],
     }
     BODY_MODEL_N_BETAS = {
         'SMPL': 10,
@@ -555,13 +565,15 @@ class AppWindow:
             self._body_model_gender.add_item(gender)
 
         # ------- BODY MODEL BETAS SETTINGS ------- #
-        self._body_model_shape_comp = gui.Combobox()
-        for i in range(AppWindow.BODY_MODEL_N_BETAS[AppWindow.BODY_MODEL_NAMES[0]]):
-            self._body_model_shape_comp.add_item(f'{i+1:02d}')
-
-        self._body_beta_val = gui.Slider(gui.Slider.DOUBLE)
-        self._body_beta_val.set_limits(-5.0, 5.0)
         self._body_beta_tensor = torch.zeros(1, 10)
+        self._body_beta_sliders = []
+        self._body_beta_labels = []
+        for i in range(AppWindow.BODY_MODEL_N_BETAS[AppWindow.BODY_MODEL_NAMES[0]]):
+            slider = gui.Slider(gui.Slider.DOUBLE)
+            slider.set_limits(-5.0, 5.0)
+            self._body_beta_sliders.append(slider)
+            label = gui.Label(AppWindow.BETA_LABELS[AppWindow.BODY_MODEL_NAMES[0]][i])
+            self._body_beta_labels.append(label)
         self._body_beta_reset = gui.Button("Reset betas")
 
         self._body_beta_text = gui.Label("Betas")
@@ -604,14 +616,13 @@ class AppWindow:
         self._show_joint_labels = gui.Checkbox("Show joint labels")
         self._show_joint_labels.set_on_checked(self._on_show_joint_labels)
 
-        self._on_body_model(AppWindow.BODY_MODEL_NAMES[0], 0)
         # self._on_body_pose_comp(list(AppWindow.POSE_PARAMS[AppWindow.BODY_MODEL_NAMES[0]].keys())[0], 0)
         self._body_model.set_on_selection_changed(self._on_body_model)
         self._body_model_gender.set_on_selection_changed(self._on_body_model_gender)
 
-        self._body_beta_val.set_on_value_changed(self._on_body_beta_val)
+        for i, slider in enumerate(self._body_beta_sliders):
+            slider.set_on_value_changed(lambda val, idx=i: self._on_body_beta_val(val, idx))
         self._body_beta_reset.set_on_clicked(self._on_body_beta_reset)
-        self._body_model_shape_comp.set_on_selection_changed(self._on_body_model_shape_comp)
 
         self._body_exp_val.set_on_value_changed(self._on_body_exp_val)
         self._body_exp_reset.set_on_clicked(self._on_body_exp_reset)
@@ -634,11 +645,21 @@ class AppWindow:
         grid.add_child(self._body_model)
         grid.add_child(gui.Label("Gender"))
         grid.add_child(self._body_model_gender)
-        grid.add_child(gui.Label("Beta Component"))
-        grid.add_child(self._body_model_shape_comp)
-        grid.add_child(gui.Label("Beta val:"))
-        grid.add_child(self._body_beta_val)
         self.model_settings.add_child(grid)
+
+        height_grid = gui.VGrid(2, 0.25 * em)
+        height_grid.add_child(gui.Label("Target Height (cm)"))
+        self._target_height_val = gui.NumberEdit(gui.NumberEdit.DOUBLE)
+        self._target_height_val.double_value = 0.0
+        self._target_height_val.set_on_value_changed(self._on_target_height)
+        height_grid.add_child(self._target_height_val)
+        self.model_settings.add_child(height_grid)
+
+        beta_grid = gui.VGrid(2, 0.25 * em)
+        for i in range(len(self._body_beta_sliders)):
+            beta_grid.add_child(self._body_beta_labels[i])
+            beta_grid.add_child(self._body_beta_sliders[i])
+        self.model_settings.add_child(beta_grid)
 
         # h = gui.Horiz(0.25 * em)  # row 1
         # h.add_child(self._body_beta_text)
@@ -698,6 +719,63 @@ class AppWindow:
         self._settings_panel.add_fixed(separation_height)
         self._settings_panel.add_child(self.model_settings)
 
+        # ------- ANTHROPOMETRIC MEASUREMENTS PANEL ------- #
+        self.measurement_settings = gui.CollapsableVert("Measurements", 0,
+                                                         gui.Margins(em, 0, 0, 0))
+        self.measurement_settings.set_is_open(True)
+
+        self.measurement_settings.add_child(gui.Label("Target Measurements (cm)"))
+        targets_grid = gui.VGrid(2, 0.25 * em)
+        
+        self.target_inputs = {}
+        target_keys = ["height", "chest circumference", "waist circumference", "hip circumference", "inside leg height", "arm right length"]
+        target_labels = ["Height:", "Chest:", "Waist:", "Hip:", "Inside Leg:", "Arm Length:"]
+        
+        for k, label_text in zip(target_keys, target_labels):
+            targets_grid.add_child(gui.Label(label_text))
+            num_edit = gui.NumberEdit(gui.NumberEdit.DOUBLE)
+            num_edit.double_value = 0.0
+            targets_grid.add_child(num_edit)
+            self.target_inputs[k] = num_edit
+            
+        self.measurement_settings.add_child(targets_grid)
+        
+        self._fit_measurements_btn = gui.Button("Fit Avatar to Targets")
+        self._fit_measurements_btn.set_on_clicked(self._on_fit_measurements)
+        
+        h_fit = gui.Horiz(0.25 * em)
+        h_fit.add_stretch()
+        h_fit.add_child(self._fit_measurements_btn)
+        h_fit.add_stretch()
+        self.measurement_settings.add_child(h_fit)
+        
+        self.measurement_settings.add_fixed(separation_height)
+        
+        self.measurement_settings.add_child(gui.Label("Visible Overlay:"))
+        self._visible_overlay = gui.Combobox()
+        self._visible_overlay.add_item("None")
+        for k in target_keys + ["neck circumference", "head circumference", "shoulder breadth"]:
+            self._visible_overlay.add_item(k)
+        self._visible_overlay.set_on_selection_changed(self._on_visible_overlay_changed)
+        self.measurement_settings.add_child(self._visible_overlay)
+        
+        self.measurement_settings.add_fixed(separation_height)
+        
+        self.measurement_settings.add_child(gui.Label("Current Measurements:"))
+        self.current_measure_grid = gui.VGrid(2, 0.25 * em)
+        self.current_measure_labels = {}
+        for k, label_text in zip(target_keys + ["neck circumference", "head circumference", "shoulder breadth"], 
+                                 target_labels + ["Neck:", "Head:", "Shoulder:"]):
+            self.current_measure_grid.add_child(gui.Label(label_text))
+            lbl = gui.Label("0.0 cm")
+            self.current_measure_grid.add_child(lbl)
+            self.current_measure_labels[k] = lbl
+            
+        self.measurement_settings.add_child(self.current_measure_grid)
+
+        self._settings_panel.add_fixed(separation_height)
+        self._settings_panel.add_child(self.measurement_settings)
+
         # Info panel
         self.info = gui.Label("")
         self.info.visible = False
@@ -732,6 +810,7 @@ class AppWindow:
             file_menu = gui.Menu()
             file_menu.add_item("Open", AppWindow.MENU_OPEN)
             file_menu.add_item("Export Current Image", AppWindow.MENU_EXPORT)
+            file_menu.add_item("Export 3D Mesh (OBJ)", AppWindow.MENU_EXPORT_OBJ)
             file_menu.add_item("Save Model Params", AppWindow.MENU_SAVE)
             if not isMacOS:
                 file_menu.add_separator()
@@ -766,6 +845,8 @@ class AppWindow:
         w.set_on_menu_item_activated(AppWindow.MENU_OPEN, self._on_menu_open)
         w.set_on_menu_item_activated(AppWindow.MENU_EXPORT,
                                      self._on_menu_export)
+        w.set_on_menu_item_activated(AppWindow.MENU_EXPORT_OBJ,
+                                     self._on_export_obj_dialog)
         w.set_on_menu_item_activated(AppWindow.MENU_SAVE,
                                      self._on_save_dialog)
         w.set_on_menu_item_activated(AppWindow.MENU_QUIT, self._on_menu_quit)
@@ -775,6 +856,7 @@ class AppWindow:
         # ----
 
         self._apply_settings()
+        self._on_body_model(AppWindow.BODY_MODEL_NAMES[0], 0)
 
     def _apply_settings(self):
         bg_color = [
@@ -830,7 +912,7 @@ class AppWindow:
         # the grandchildren.
         r = self.window.content_rect
         self._scene.frame = r
-        width = 17 * layout_context.theme.font_size
+        width = 22 * layout_context.theme.font_size
         height = min(
             r.height,
             self._settings_panel.calc_preferred_size(
@@ -999,9 +1081,14 @@ class AppWindow:
 
     def _on_body_model(self, name, index):
         logger.info(f"Loading body model {name}-{index}")
-        self._body_beta_val.double_value = 0.0
+        for slider in self._body_beta_sliders:
+            slider.double_value = 0.0
+        if hasattr(self, '_target_height_val'):
+            self._target_height_val.double_value = 0.0
         AppWindow.CAM_FIRST = True
         self.load_body_model(name)
+        for i, label in enumerate(self._body_beta_labels):
+            label.text = AppWindow.BETA_LABELS[name][i]
         self._body_model_gender.clear_items()
 
         for gender in AppWindow.BODY_MODEL_GENDERS[name]:
@@ -1022,14 +1109,23 @@ class AppWindow:
 
     def _on_body_model_gender(self, name, index):
         logger.info(f"Changing {self._body_model.selected_text} body model gender to {name}-{index}")
-        self._body_beta_val.double_value = 0.0
+        for slider in self._body_beta_sliders:
+            slider.double_value = 0.0
         self.load_body_model(self._body_model.selected_text, gender=name)
         self._reset_rot_sliders()
         self._on_show_joints(self._show_joints.checked)
         # self._apply_settings()
 
-    def _on_body_beta_val(self, val):
-        self._body_beta_tensor[0, int(self._body_model_shape_comp.selected_text)-1] = float(val)
+    def _on_target_height(self, val):
+        self.load_body_model(
+            self._body_model.selected_text,
+            gender=self._body_model_gender.selected_text,
+        )
+
+    def _on_body_beta_val(self, val, idx):
+        self._body_beta_tensor[0, idx] = float(val)
+        if idx == 0 and hasattr(self, '_target_height_val') and self._target_height_val.double_value > 0.0:
+            self._target_height_val.double_value = 0.0
         self._body_beta_text.text = f",".join(f'{x:.1f}' for x in self._body_beta_tensor[0].numpy().tolist())
         self.load_body_model(
             self._body_model.selected_text,
@@ -1091,9 +1187,6 @@ class AppWindow:
         )
         # self._on_show_joints(self._show_joints.checked)
 
-    def _on_body_model_shape_comp(self, name, index):
-        self._body_beta_val.double_value = self._body_beta_tensor[0, index].item()
-
     def _on_body_model_exp_comp(self, name, index):
         self._body_exp_val.double_value = self._body_exp_tensor[0, index].item()
 
@@ -1107,7 +1200,13 @@ class AppWindow:
     def _on_body_beta_reset(self):
         self._body_beta_tensor = torch.zeros(1, 10)
         self._body_beta_text.text = f",".join(f'{x:.1f}' for x in self._body_beta_tensor[0].numpy().tolist())
-        self._body_beta_val.double_value = 0.0
+        for slider in self._body_beta_sliders:
+            slider.double_value = 0.0
+        if hasattr(self, '_target_height_val'):
+            self._target_height_val.double_value = 0.0
+        if hasattr(self, 'target_inputs'):
+            for k in self.target_inputs.keys():
+                self.target_inputs[k].double_value = 0.0
         self.load_body_model(
             self._body_model.selected_text,
             gender=self._body_model_gender.selected_text,
@@ -1465,6 +1564,50 @@ class AppWindow:
         AppWindow.JOINTS = model_output.joints[0].detach().numpy()
         faces = model.faces
 
+        if hasattr(self, '_target_height_val') and self._target_height_val.double_value > 0.0:
+            target_h = self._target_height_val.double_value / 100.0
+            
+            def eval_height(b0):
+                old_b0 = self._body_beta_tensor[0, 0].item()
+                self._body_beta_tensor[0, 0] = b0
+                mo = model(betas=self._body_beta_tensor, expression=self._body_exp_tensor, **input_params)
+                self._body_beta_tensor[0, 0] = old_b0
+                v = mo.vertices[0].detach().numpy()
+                if 'smplx' in body_model.lower():
+                    ht = v[8976]
+                    hl = (v[8847] + v[8635]) / 2.0
+                    return np.linalg.norm(ht - hl)
+                elif 'smpl' in body_model.lower():
+                    ht = v[412]
+                    hl = (v[3458] + v[6858]) / 2.0
+                    return np.linalg.norm(ht - hl)
+                else:
+                    return v[:, 1].max() - v[:, 1].min()
+
+            b0 = self._body_beta_tensor[0, 0].item()
+            h0 = eval_height(b0)
+            b1 = b0 + 0.1
+            h1 = eval_height(b1)
+            
+            for _ in range(3):
+                if h1 == h0: break
+                b_new = np.clip(b1 - (h1 - target_h) * (b1 - b0) / (h1 - h0), -10.0, 10.0)
+                b0, b1 = b1, b_new
+                h0, h1 = h1, eval_height(b1)
+                
+            self._body_beta_tensor[0, 0] = b1
+            self._body_beta_sliders[0].double_value = b1
+            self._body_beta_text.text = f",".join(f'{x:.1f}' for x in self._body_beta_tensor[0].numpy().tolist())
+
+            model_output = model(
+                betas=self._body_beta_tensor,
+                expression=self._body_exp_tensor,
+                **input_params,
+            )
+            verts = model_output.vertices[0].detach().numpy()
+            AppWindow.JOINTS = model_output.joints[0].detach().numpy()
+            faces = model.faces
+
         mesh = o3d.geometry.TriangleMesh()
 
         mesh.vertices = o3d.utility.Vector3dVector(verts)
@@ -1476,6 +1619,8 @@ class AppWindow:
         mesh.translate([0, min_y, 0])
         AppWindow.JOINTS += np.array([0, min_y, 0])
 
+        self.current_mesh = mesh
+
         self._scene.scene.add_geometry("__body_model__", mesh,
                                        self.settings.material)
         bounds = mesh.get_axis_aligned_bounding_box()
@@ -1484,6 +1629,10 @@ class AppWindow:
             AppWindow.CAM_FIRST = False
         AppWindow.BODY_TRANSL = torch.tensor([[0, min_y, 0]])
         self._on_show_joints(self._show_joints.checked)
+
+        # Recalculate measurements on mesh load
+        translated_verts = np.asarray(mesh.vertices)
+        self.recalculate_and_update_measurements(body_model, translated_verts, AppWindow.JOINTS, gender)
 
     def load(self, path):
         # self._scene.scene.clear_geometry()
@@ -1548,6 +1697,203 @@ class AppWindow:
             o3d.io.write_image(path, img, quality)
 
         self._scene.scene.scene.render_to_image(on_image)
+
+    def recalculate_and_update_measurements(self, body_model, verts, joints, gender):
+        model_key = body_model.lower()
+        if model_key not in ('smpl', 'smplx'):
+            if hasattr(self, 'current_measure_labels'):
+                for k in self.current_measure_labels.keys():
+                    self.current_measure_labels[k].text = "N/A"
+            return
+
+        if not hasattr(self, 'measurers'):
+            self.measurers = {
+                'smpl': MeasureBody('smpl'),
+                'smplx': MeasureBody('smplx')
+            }
+
+        measurer = self.measurers[model_key]
+        measurer.verts = verts
+        measurer.joints = joints
+        measurer.gender = gender.upper()
+
+        measurer.measurements = {}
+        measurer.measure(measurer.all_possible_measurements)
+
+        for k, label in self.current_measure_labels.items():
+            if k in measurer.measurements:
+                val = measurer.measurements[k]
+                label.text = f"{val:.1f} cm"
+            else:
+                label.text = "N/A"
+
+        self._update_overlay()
+
+    def _on_visible_overlay_changed(self, name, index):
+        self._update_overlay()
+
+    def _update_overlay(self):
+        if self._scene.scene.has_geometry("__overlay__"):
+            self._scene.scene.remove_geometry("__overlay__")
+        if self._scene.scene.has_geometry("__overlay_endpoint1__"):
+            self._scene.scene.remove_geometry("__overlay_endpoint1__")
+        if self._scene.scene.has_geometry("__overlay_endpoint2__"):
+            self._scene.scene.remove_geometry("__overlay_endpoint2__")
+
+        if not hasattr(self, '_visible_overlay'):
+            return
+
+        selected = self._visible_overlay.selected_text
+        if selected == "None":
+            return
+
+        model_key = self._body_model.selected_text.lower()
+        if model_key not in ('smpl', 'smplx') or not hasattr(self, 'measurers'):
+            return
+
+        measurer = self.measurers[model_key]
+        if selected not in measurer.measurements:
+            return
+
+        if not hasattr(measurer, 'measurement_geometries') or selected not in measurer.measurement_geometries:
+            return
+
+        geom_type, *geom_data = measurer.measurement_geometries[selected]
+
+        mat = rendering.MaterialRecord()
+        mat.base_color = [1.0, 0.1, 0.1, 1.0]  # Red
+        mat.shader = "defaultUnlit"
+        mat.line_width = 8.0
+
+        if geom_type == 'length':
+            p1, p2 = geom_data
+
+            lineset = o3d.geometry.LineSet()
+            lineset.points = o3d.utility.Vector3dVector([p1, p2])
+            lineset.lines = o3d.utility.Vector2iVector([[0, 1]])
+
+            self._scene.scene.add_geometry("__overlay__", lineset, mat)
+
+            sp_mat = rendering.MaterialRecord()
+            sp_mat.base_color = [0.1, 0.9, 0.1, 1.0]  # Green endpoints
+            sp_mat.shader = "defaultLit"
+
+            sp1 = o3d.geometry.TriangleMesh.create_sphere(radius=0.015)
+            sp1.compute_vertex_normals()
+            sp1.translate(p1)
+            self._scene.scene.add_geometry("__overlay_endpoint1__", sp1, sp_mat)
+
+            sp2 = o3d.geometry.TriangleMesh.create_sphere(radius=0.015)
+            sp2.compute_vertex_normals()
+            sp2.translate(p2)
+            self._scene.scene.add_geometry("__overlay_endpoint2__", sp2, sp_mat)
+
+        elif geom_type == 'circumference':
+            slice_segments_hull = geom_data[0]
+
+            num_segments = slice_segments_hull.shape[0]
+            points = []
+            lines = []
+            for idx in range(num_segments):
+                seg = slice_segments_hull[idx]
+                points.append(seg[0])
+                points.append(seg[1])
+                lines.append([idx * 2, idx * 2 + 1])
+
+            lineset = o3d.geometry.LineSet()
+            lineset.points = o3d.utility.Vector3dVector(points)
+            lineset.lines = o3d.utility.Vector2iVector(lines)
+
+            self._scene.scene.add_geometry("__overlay__", lineset, mat)
+
+    def _on_fit_measurements(self):
+        targets = {}
+        for k, num_edit in self.target_inputs.items():
+            if num_edit.double_value > 0.0:
+                targets[k] = num_edit.double_value
+
+        if not targets:
+            self._update_label("Please specify at least one target measurement > 0 cm.")
+            return
+
+        body_model_name = self._body_model.selected_text
+        gender_name = self._body_model_gender.selected_text
+
+        self._update_label("Running optimization... Please wait.")
+        gui.Application.instance.post_to_main_thread(
+            self.window, lambda: self._run_optimization_fit(body_model_name, gender_name, targets)
+        )
+
+    def _run_optimization_fit(self, body_model_name, gender_name, targets):
+        from scipy.optimize import minimize
+
+        model = AppWindow.PRELOADED_BODY_MODELS[f'{body_model_name.lower()}-{gender_name.lower()}']
+
+        input_params = copy.deepcopy(AppWindow.POSE_PARAMS[body_model_name])
+        for k, v in input_params.items():
+            input_params[k] = v.reshape(1, -1)
+
+        measurer = self.measurers[body_model_name.lower()]
+        initial_betas = self._body_beta_tensor[0].numpy().copy()
+
+        def fit_loss(betas_np):
+            betas_t = torch.from_numpy(betas_np).float().unsqueeze(0)
+
+            mo = model(
+                betas=betas_t,
+                expression=self._body_exp_tensor,
+                **input_params,
+            )
+            v = mo.vertices[0].detach().numpy()
+            j = mo.joints[0].detach().numpy()
+
+            min_y = -v[:, 1].min()
+            v_trans = v + np.array([0, min_y, 0])
+            j_trans = j + np.array([0, min_y, 0])
+
+            measurer.verts = v_trans
+            measurer.joints = j_trans
+            measurer.measurements = {}
+            measurer.measure(list(targets.keys()))
+
+            loss = 0.0
+            for k, target_val in targets.items():
+                if k in measurer.measurements:
+                    loss += (measurer.measurements[k] - target_val) ** 2
+            return loss
+
+        bounds = [(-5.0, 5.0) for _ in range(10)]
+
+        res = minimize(fit_loss, initial_betas, method='L-BFGS-B', bounds=bounds, options={'maxiter': 30, 'ftol': 1e-4, 'eps': 0.1})
+
+        optimized_betas = res.x
+        self._body_beta_tensor[0] = torch.from_numpy(optimized_betas).float()
+
+        for idx in range(10):
+            self._body_beta_sliders[idx].double_value = float(optimized_betas[idx])
+
+        self._body_beta_text.text = f",".join(f'{x:.1f}' for x in self._body_beta_tensor[0].numpy().tolist())
+
+        self.load_body_model(body_model_name, gender=gender_name)
+
+        self._update_label(f"Avatar fit successfully! Loss: {res.fun:.4f}")
+
+    def _on_export_obj_dialog(self):
+        dlg = gui.FileDialog(gui.FileDialog.SAVE, "Choose file to save OBJ",
+                             self.window.theme)
+        dlg.add_filter(".obj", "Wavefront OBJ files (.obj)")
+        dlg.set_on_cancel(self._on_save_dialog_cancel)
+        dlg.set_on_done(self._on_export_obj_dialog_done)
+        self.window.show_dialog(dlg)
+
+    def _on_export_obj_dialog_done(self, filename):
+        self.window.close_dialog()
+        if hasattr(self, 'current_mesh') and self.current_mesh is not None:
+            logger.debug(f'Exporting OBJ mesh to {filename}')
+            o3d.io.write_triangle_mesh(filename, self.current_mesh)
+            self._update_label(f"Mesh exported to {filename}")
+        else:
+            logger.warning("No mesh to export")
 
 
 def main(args):
