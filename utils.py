@@ -546,5 +546,46 @@ def get_checkerboard_plane(plane_width=20, num_boxes=15, center=True):
     return meshes
 
 
+def load_obj_triangle_uvs(path):
+    # Legge da un file OBJ (es. il template UV ufficiale smpl_uv.obj) le
+    # coordinate texture "vt" e gli indici UV delle facce "f v/vt", e le
+    # riorganizza nel formato per-triangolo richiesto da Open3D
+    # (mesh.triangle_uvs: un array (3*n_triangoli, 2), cioè una coppia UV
+    # per ciascun vertice di ciascun triangolo).
+    #
+    # Perché per-triangolo e non per-vertice? Il template UV di SMPL ha PIÙ
+    # vertici UV che vertici mesh: lungo le "cuciture" (seams, dove la pelle
+    # 3D viene "aperta" per stenderla sull'immagine 2D) lo stesso vertice 3D
+    # compare in due punti diversi della texture. Le UV per-triangolo
+    # permettono proprio questo.
+    #
+    # Ritorna None se il file non contiene indici UV nelle facce.
+    uv_coords = []
+    face_uv_indices = []
+    with open(path, 'r') as f:
+        for line in f:
+            if line.startswith('vt '):
+                parts = line.split()
+                uv_coords.append([float(parts[1]), float(parts[2])])
+            elif line.startswith('f '):
+                parts = line.split()[1:]
+                if len(parts) != 3:
+                    continue  # Il template SMPL è già triangolato: ignoriamo eventuali facce non-triangolari
+                idxs = []
+                for p in parts:
+                    comps = p.split('/')
+                    if len(comps) < 2 or comps[1] == '':
+                        return None  # Faccia senza indice UV: il file non è un template UV valido
+                    idxs.append(int(comps[1]) - 1)  # Gli indici OBJ partono da 1
+                face_uv_indices.append(idxs)
+
+    if not uv_coords or not face_uv_indices:
+        return None
+
+    uv_coords = np.asarray(uv_coords, dtype=np.float64)
+    face_uv_indices = np.asarray(face_uv_indices, dtype=np.int64)
+    return uv_coords[face_uv_indices.reshape(-1)]
+
+
 if __name__ == '__main__':
     import ipdb; ipdb.set_trace()

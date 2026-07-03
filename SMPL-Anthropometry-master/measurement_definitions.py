@@ -1,13 +1,22 @@
 
+# Importa i dizionari di landmark (nome landmark -> indice vertice mesh) e di
+# giunti (indice/nome giunto) definiti negli altri due file "dati". Questo
+# file li combina per definire COSA misurare e COME (lunghezza o
+# circonferenza), mentre il calcolo vero e proprio della misura è fatto
+# altrove dal Measurer.
 from landmark_definitions import *
 from joint_definitions import *
 
+# Dizionario che associa una lettera "standard" (usata ad es. in tabelle di
+# taglie/sartoria) al nome descrittivo della misura corrispondente usato nel
+# resto del codice. Serve solo per avere etichette leggibili quando si
+# presentano i risultati.
 STANDARD_LABELS = {
-        'A': 'head circumference',
-        'B': 'neck circumference',
-        'C': 'shoulder to crotch height',
-        'D': 'chest circumference',
-        'E': 'waist circumference',
+        'A': 'head circumference',    # A -> circonferenza della testa
+        'B': 'neck circumference',    # B -> circonferenza del collo
+        'C': 'shoulder to crotch height',  # C -> altezza spalla-inguine
+        'D': 'chest circumference',   # D -> circonferenza del torace
+        'E': 'waist circumference',   # E -> circonferenza della vita
         'F': 'hip circumference',
         'G': 'wrist right circumference',
         'H': 'bicep right circumference',
@@ -22,14 +31,22 @@ STANDARD_LABELS = {
     }
 
 
+# Classe usata come semplice "enum": non viene istanziata, serve solo a dare
+# un nome simbolico alle due stringhe possibili per il tipo di misura, invece
+# di scrivere "circumference"/"length" a mano (con rischio di refusi) in giro
+# per il codice.
 class MeasurementType():
     CIRCUMFERENCE = "circumference"
     LENGTH = "length"
 
 
+# Dizionario che associa ad ogni nome di misura il suo TIPO (lunghezza o
+# circonferenza). Viene usato da Measurer.measure() per decidere se calcolare
+# la misura come distanza tra due punti (measure_length) oppure come
+# perimetro di una sezione del corpo (measure_circumference).
 MEASUREMENT_TYPES = {
-        "height": MeasurementType.LENGTH,
-        "head circumference": MeasurementType.CIRCUMFERENCE,
+        "height": MeasurementType.LENGTH,                       # è una lunghezza
+        "head circumference": MeasurementType.CIRCUMFERENCE,   # è una circonferenza
         "neck circumference": MeasurementType.CIRCUMFERENCE,
         "shoulder to crotch height": MeasurementType.LENGTH,
         "chest circumference": MeasurementType.CIRCUMFERENCE,
@@ -76,16 +93,20 @@ class SMPLMeasurementDefinitions():
        face segmentation.
     '''
     
-    LENGTHS = {"height": 
-                    (SMPL_LANDMARK_INDICES["HEAD_TOP"], 
+    # Dizionario delle misure di tipo LUNGHEZZA: ad ogni nome di misura è
+    # associata una tupla di landmark (di solito 2) presi da
+    # SMPL_LANDMARK_INDICES. La misura viene calcolata come distanza (semplice
+    # o lungo la superficie) tra questi punti sulla mesh.
+    LENGTHS = {"height":                       # altezza totale: testa -> talloni
+                    (SMPL_LANDMARK_INDICES["HEAD_TOP"],
                      SMPL_LANDMARK_INDICES["HEELS"]
                      ),
-               "shoulder to crotch height": 
-                    (SMPL_LANDMARK_INDICES["SHOULDER_TOP"], 
+               "shoulder to crotch height":    # altezza spalla -> inguine
+                    (SMPL_LANDMARK_INDICES["SHOULDER_TOP"],
                      SMPL_LANDMARK_INDICES["INSEAM_POINT"]
                     ),
-                "arm left length": 
-                    (SMPL_LANDMARK_INDICES["LEFT_SHOULDER"], 
+                "arm left length":             # lunghezza braccio sinistro: spalla -> polso
+                    (SMPL_LANDMARK_INDICES["LEFT_SHOULDER"],
                      SMPL_LANDMARK_INDICES["LEFT_WRIST"]
                     ),
                 "arm right length":
@@ -100,9 +121,16 @@ class SMPLMeasurementDefinitions():
                     (SMPL_LANDMARK_INDICES["LEFT_SHOULDER"], 
                      SMPL_LANDMARK_INDICES["RIGHT_SHOULDER"]
                     ),
+                # Voce "speciale": a differenza delle altre misure di lunghezza,
+                # qui la coppia di landmark non usa i punti "generici"
+                # (LEFT_SHOULDER/LEFT_ELBOW, lasciati come commento sotto per
+                # memoria) ma i landmark in stile CAESAR (Rt. Acromion = punta
+                # della spalla destra, Rt. Humeral Lateral Epicn = gomito
+                # destro), ritenuti più precisi per isolare il tratto
+                # spalla-gomito.
                 "arm length (shoulder to elbow)":
                     (
-                    #  SMPL_LANDMARK_INDICES["LEFT_SHOULDER"], 
+                    #  SMPL_LANDMARK_INDICES["LEFT_SHOULDER"],
                     #  SMPL_LANDMARK_INDICES["LEFT_ELBOW"]
                     SMPL_LANDMARK_INDICES["Rt. Acromion"],
                     SMPL_LANDMARK_INDICES["Rt. Humeral Lateral Epicn"]
@@ -115,10 +143,19 @@ class SMPLMeasurementDefinitions():
                     (SMPL_LANDMARK_INDICES["PUBIC_BONE"],
                      SMPL_LANDMARK_INDICES["HEELS"]
                     ),
+                # Voce "speciale": a differenza di TUTTE le altre misure di
+                # questo dizionario (definite con una tupla di 2 landmark),
+                # questa è definita con una tupla di 4 landmark in sequenza
+                # lungo il braccio (dalla base del collo fino al polso,
+                # passando per spalla e gomito). Il commento FIXME sopra
+                # segnala che la misura andrebbe idealmente calcolata come
+                # distanza geodetica (lungo la superficie del corpo) sommando
+                # i tratti tra questi 4 punti, invece di una singola distanza
+                # in linea retta tra 2 soli punti come per le altre lunghezze.
                 # FIXME: implement geodesic distance for this measurement
-                "arm length (spine to wrist)": 
+                "arm length (spine to wrist)":
                     (
-                    #  SMPL_LANDMARK_INDICES["SHOULDER_TOP"], 
+                    #  SMPL_LANDMARK_INDICES["SHOULDER_TOP"],
                     #  SMPL_LANDMARK_INDICES["LEFT_WRIST"]
                         SMPL_LANDMARK_INDICES["Cervicale"],
                         SMPL_LANDMARK_INDICES["Rt. Acromion"],
@@ -127,25 +164,32 @@ class SMPLMeasurementDefinitions():
                     ),
                }
 
-    # defined with landmarks and joints
-    # landmarks are defined with indices of the smpl model points
-    # normals are defined with joint names of the smpl model
+    # Dizionario delle misure di tipo CIRCONFERENZA. Ogni voce ha per valore
+    # un dizionario con due chiavi:
+    # - "LANDMARKS": lista di uno o più nomi di landmark (da
+    #   SMPL_LANDMARK_INDICES) che indicano DOVE tagliare il corpo (il piano
+    #   di taglio passa per quel punto, o per il punto medio se sono 2);
+    # - "JOINTS": lista di ESATTAMENTE due nomi di giunto (da
+    #   SMPL_IND2JOINT/JOINT2IND) il cui segmento definisce la NORMALE del
+    #   piano di taglio, cioè la sua orientazione.
+    # Tagliando la mesh con questo piano si ottiene una sezione, il cui
+    # perimetro è la circonferenza misurata.
     CIRCUMFERENCES = {
-        "head circumference":{"LANDMARKS":["HEAD_LEFT_TEMPLE"],
-                               "JOINTS":["pelvis","spine3"]},
+        "head circumference":{"LANDMARKS":["HEAD_LEFT_TEMPLE"],   # taglio passante per la tempia sinistra
+                               "JOINTS":["pelvis","spine3"]},       # normale = asse bacino-colonna (verticale)
 
-        "neck circumference":{"LANDMARKS":["NECK_ADAM_APPLE"],
-                               "JOINTS":["spine2","head"]},
-        
-        "chest circumference":{"LANDMARKS":["LEFT_NIPPLE","RIGHT_NIPPLE"],
+        "neck circumference":{"LANDMARKS":["NECK_ADAM_APPLE"],    # taglio passante per il "pomo d'Adamo"
+                               "JOINTS":["spine2","head"]},         # normale = asse colonna-testa
+
+        "chest circumference":{"LANDMARKS":["LEFT_NIPPLE","RIGHT_NIPPLE"],  # taglio nel piano dei due capezzoli
                                "JOINTS":["pelvis","spine3"]},
 
         "waist circumference":{"LANDMARKS":["BELLY_BUTTON","BACK_BELLY_BUTTON"],
                                "JOINTS":["pelvis","spine3"]},
-        
+
         "hip circumference":{"LANDMARKS":["PUBIC_BONE"],
                                "JOINTS":["pelvis","spine3"]},
-        
+
         "wrist right circumference":{"LANDMARKS":["RIGHT_WRIST"],
                                     "JOINTS":["right_wrist","right_hand"]},
         
@@ -165,13 +209,25 @@ class SMPLMeasurementDefinitions():
                                     "JOINTS":["pelvis","spine3"]},      
                     
                     }
-    
+
+    # Semplice lista con tutti i nomi di misura disponibili per SMPL, ottenuta
+    # unendo le chiavi di LENGTHS e di CIRCUMFERENCES: serve per validare o
+    # elencare le misure richiedibili al Measurer.
     possible_measurements = list(LENGTHS.keys()) + list(CIRCUMFERENCES.keys())
 
+    # Dizionario che, per ogni misura di circonferenza, indica in quale/i
+    # parte/i del corpo (secondo la segmentazione standard delle facce della
+    # mesh SMPL) va cercata la sezione giusta. Serve perché il piano di taglio
+    # definito in CIRCUMFERENCES può intersecare la mesh in più punti (es.
+    # anche le braccia, oltre al busto): restringendo la ricerca a queste
+    # parti si evita di scegliere per errore la sezione sbagliata. Il valore
+    # può essere una singola stringa (una sola parte del corpo) oppure una
+    # lista di stringhe (più parti, quando la sezione attraversa più zone
+    # della segmentazione).
     CIRCUMFERENCE_TO_BODYPARTS = {
-        "head circumference": "head",
+        "head circumference": "head",                  # una sola parte del corpo
         "neck circumference":"neck",
-        "chest circumference":["spine1","spine2"],
+        "chest circumference":["spine1","spine2"],      # due parti: il taglio attraversa entrambe
         "waist circumference":["hips","spine"],
         "hip circumference":"hips",
         "wrist right circumference":["rightHand","rightForeArm"],
@@ -207,16 +263,21 @@ class SMPLXMeasurementDefinitions():
        face segmentation.
     '''
     
-    LENGTHS = {"height": 
-                    (SMPLX_LANDMARK_INDICES["HEAD_TOP"], 
+    # Stesso ruolo di SMPLMeasurementDefinitions.LENGTHS, ma con gli indici
+    # di SMPLX_LANDMARK_INDICES. Rispetto alla versione SMPL, qui mancano
+    # "arm length (shoulder to elbow)", "crotch height",
+    # "Hip circumference max height" e "arm length (spine to wrist)", perché
+    # SMPLX non definisce i landmark in stile CAESAR usati per quelle misure.
+    LENGTHS = {"height":                       # altezza totale: testa -> talloni
+                    (SMPLX_LANDMARK_INDICES["HEAD_TOP"],
                      SMPLX_LANDMARK_INDICES["HEELS"]
                      ),
-               "shoulder to crotch height": 
-                    (SMPLX_LANDMARK_INDICES["SHOULDER_TOP"], 
+               "shoulder to crotch height":    # altezza spalla -> inguine
+                    (SMPLX_LANDMARK_INDICES["SHOULDER_TOP"],
                      SMPLX_LANDMARK_INDICES["INSEAM_POINT"]
                     ),
-                "arm left length": 
-                    (SMPLX_LANDMARK_INDICES["LEFT_SHOULDER"], 
+                "arm left length":             # lunghezza braccio sinistro: spalla -> polso
+                    (SMPLX_LANDMARK_INDICES["LEFT_SHOULDER"],
                      SMPLX_LANDMARK_INDICES["LEFT_WRIST"]
                     ),
                 "arm right length":
@@ -233,17 +294,18 @@ class SMPLXMeasurementDefinitions():
                     ),
                }
 
-    # defined with landmarks and joints
-    # landmarks are defined with indices of the smpl model points
-    # normals are defined with joint names of the smpl model
+    # Stesso ruolo di SMPLMeasurementDefinitions.CIRCUMFERENCES (vedi il
+    # commento lì per il significato di "LANDMARKS"/"JOINTS"), qui con gli
+    # indici e i nomi di giunto validi per SMPLX. Alcune voci usano giunti
+    # diversi rispetto a SMPL (segnalato inline dove succede).
     CIRCUMFERENCES = {
-        "head circumference":{"LANDMARKS":["HEAD_LEFT_TEMPLE"],
-                               "JOINTS":["pelvis","spine3"]},
+        "head circumference":{"LANDMARKS":["HEAD_LEFT_TEMPLE"],   # taglio passante per la tempia sinistra
+                               "JOINTS":["pelvis","spine3"]},       # normale = asse bacino-colonna
 
-        "neck circumference":{"LANDMARKS":["NECK_ADAM_APPLE"],
-                               "JOINTS":["spine1","spine3"]},
-        
-        "chest circumference":{"LANDMARKS":["LEFT_NIPPLE","RIGHT_NIPPLE"],
+        "neck circumference":{"LANDMARKS":["NECK_ADAM_APPLE"],    # taglio passante per il "pomo d'Adamo"
+                               "JOINTS":["spine1","spine3"]},       # diverso da SMPL (lì: spine2, head)
+
+        "chest circumference":{"LANDMARKS":["LEFT_NIPPLE","RIGHT_NIPPLE"],  # taglio nel piano dei due capezzoli
                                "JOINTS":["pelvis","spine3"]},
 
         "waist circumference":{"LANDMARKS":["BELLY_BUTTON","BACK_BELLY_BUTTON"],
@@ -272,6 +334,11 @@ class SMPLXMeasurementDefinitions():
                     
                     }
     
+    # Stesso ruolo di possible_measurements/CIRCUMFERENCE_TO_BODYPARTS della
+    # classe SMPLMeasurementDefinitions (vedi i commenti lì): elenco di tutte
+    # le misure disponibili per SMPLX, e per ciascuna circonferenza la/le
+    # parte/i del corpo (segmentazione SMPL) in cui cercare la sezione giusta
+    # (stringa singola o lista di stringhe).
     possible_measurements = list(LENGTHS.keys()) + list(CIRCUMFERENCES.keys())
 
     CIRCUMFERENCE_TO_BODYPARTS = {

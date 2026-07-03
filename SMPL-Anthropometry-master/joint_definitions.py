@@ -2,10 +2,23 @@ import smplx
 import torch
 import os
 
+# Questo file definisce i "giunti" (joints) dello scheletro usato dai modelli
+# di corpo SMPL/SMPLX: lo scheletro è la catena di ossa/articolazioni virtuali
+# che permette di posare (ruotare braccia, gambe, ecc.) la mesh. Qui non si
+# definiscono le posizioni 3D dei giunti, ma solo la loro numerazione e i
+# nomi, così il resto del codice può riferirsi a un giunto per indice
+# (come richiesto dal modello) o per nome (più leggibile per un umano).
 #from https://meshcapade.wiki/SMPL
 
+# Numero totale di giunti dello scheletro SMPL (corpo "base", senza mani/viso).
 SMPL_NUM_JOINTS = 24
 
+# Dizionario indice -> nome del giunto per SMPL. L'indice è la posizione del
+# giunto nell'array di rotazioni (pose) e nell'output del modello SMPL;
+# il nome è quello standard usato nella letteratura/documentazione SMPL.
+# Esempio di lettura: il giunto 0 è il "pelvis" (bacino, radice dello
+# scheletro), il giunto 1 è l'anca sinistra, il giunto 4 il ginocchio
+# sinistro, e così via risalendo dal basso verso l'alto lungo il corpo.
 SMPL_IND2JOINT = {
     0: 'pelvis',
      1: 'left_hip',
@@ -33,13 +46,26 @@ SMPL_IND2JOINT = {
     23: 'right_hand'
 }
 
+# Dizionario "inverso" nome -> indice, generato automaticamente a partire da
+# SMPL_IND2JOINT (basta scambiare chiave e valore). Utile quando nel codice si
+# conosce il nome del giunto (es. "left_knee") e serve il suo indice numerico
+# per indicizzare array/tensori del modello.
 SMPL_JOINT2IND = {name:ind for ind,name in SMPL_IND2JOINT.items()}
 
 
 
 
+# Numero totale di giunti dello scheletro SMPLX: rispetto a SMPL (24) include
+# anche i giunti di mani e viso, quindi sono molti di più (55).
 SMPLX_NUM_JOINTS = 55
 
+# Dizionario indice -> nome del giunto per SMPLX, stesso ruolo di
+# SMPL_IND2JOINT. I primi 22 giunti (indici 0-21) coincidono concettualmente
+# con quelli "di base" di SMPL (bacino, anche, ginocchia, colonna, spalle,
+# gomiti, polsi); da qui in poi la lista prosegue con giunti che SMPL non ha:
+# mascella/occhi (jaw, left_eye, right_eye) e poi le tre falangi di ciascun
+# dito di entrambe le mani (index/middle/pinky/ring/thumb, 1/2/3), perché
+# SMPLX modella anche mani e viso in dettaglio.
 SMPLX_IND2JOINT = {
     0: 'pelvis',
      1: 'left_hip',
@@ -98,8 +124,16 @@ SMPLX_IND2JOINT = {
     54: 'right_thumb3'
 }
 
+# Dizionario inverso nome -> indice per SMPLX, stesso principio di
+# SMPL_JOINT2IND.
 SMPLX_JOINT2IND = {name:ind for ind,name in SMPLX_IND2JOINT.items()}
 
+# Funzione (non un dizionario di dati, ma un piccolo helper): carica il
+# modello di corpo SMPL/SMPLX da disco tramite la libreria "smplx" e ne
+# restituisce lo "J_regressor", cioè la matrice che permette di calcolare
+# la posizione 3D dei giunti a partire dai vertici della mesh. Viene usata
+# altrove nel progetto (es. dal Measurer) per sapere dove si trovano i
+# giunti definiti sopra (pelvis, spine3, ecc.) su un corpo specifico.
 def get_joint_regressor(body_model_type, body_model_root, gender="MALE", num_thetas=24):
     '''
     Extract joint regressor from SMPL body model

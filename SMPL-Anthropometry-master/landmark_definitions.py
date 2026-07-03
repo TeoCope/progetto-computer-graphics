@@ -1,9 +1,16 @@
-
-SMPL_LANDMARK_INDICES = {"HEAD_TOP": 412,
-                    "HEAD_LEFT_TEMPLE": 166,
-                    "NECK_ADAM_APPLE": 3050,
-                    "LEFT_HEEL": 3458,
-                    "RIGHT_HEEL": 6858,
+# Questo dizionario mappa il nome "leggibile" di un landmark anatomico
+# (es. la punta della testa, un capezzolo, un polso...) all'indice del
+# vertice corrispondente nella mesh del corpo SMPL, che è composta da
+# 6890 vertici in totale. Questi indici sono stati individuati a mano
+# (o presi da dataset come CAESAR) una volta per tutte sul modello SMPL
+# "a riposo" e vengono poi riusati per calcolare le misure antropometriche
+# (lunghezze e circonferenze) su qualunque corpo generato da SMPL, perché
+# la mesh ha sempre la stessa topologia (stessi indici = stesse zone del corpo).
+SMPL_LANDMARK_INDICES = {"HEAD_TOP": 412,           # vertice sulla sommità della testa
+                    "HEAD_LEFT_TEMPLE": 166,         # vertice sulla tempia sinistra
+                    "NECK_ADAM_APPLE": 3050,         # vertice sul "pomo d'Adamo" (gola)
+                    "LEFT_HEEL": 3458,               # vertice sul tallone sinistro
+                    "RIGHT_HEEL": 6858,              # vertice sul tallone destro
                     "LEFT_NIPPLE": 3042,
                     "RIGHT_NIPPLE": 6489,
 
@@ -27,23 +34,39 @@ SMPL_LANDMARK_INDICES = {"HEAD_TOP": 412,
 
                     "BUTTHOLE": 3119,
 
-                    # introduce CAESAR landmarks because
-                    # i need to measure arms in parts
+                    # Questi 4 landmark seguono la nomenclatura del dataset CAESAR
+                    # (non il naming "generico" usato sopra) e sono stati aggiunti
+                    # perché servono a spezzare la misura del braccio in più tratti
+                    # (spalla-gomito, gomito-polso) invece di misurarla tutta d'un
+                    # pezzo: Cervicale = vertebra alla base del collo, Acromion =
+                    # punta della spalla, Humeral Lateral Epicondyle = gomito,
+                    # Ulnar Styloid = polso.
                     "Cervicale": 829,
                     'Rt. Acromion': 5342,
                     'Rt. Humeral Lateral Epicn': 5090,
                     'Rt. Ulnar Styloid': 5520,
                     }
 
-SMPL_LANDMARK_INDICES["HEELS"] = (SMPL_LANDMARK_INDICES["LEFT_HEEL"], 
+# Voce "derivata": non è un singolo indice di vertice ma una tupla con i due
+# indici già definiti sopra (tallone sinistro, tallone destro). Viene creata
+# così, dopo la definizione del dizionario, perché serve un punto "medio/doppio"
+# usato ad esempio per misurare l'altezza totale del corpo (dalla testa ai
+# talloni) o la circonferenza dell'anca alla massima altezza.
+SMPL_LANDMARK_INDICES["HEELS"] = (SMPL_LANDMARK_INDICES["LEFT_HEEL"],
                                   SMPL_LANDMARK_INDICES["RIGHT_HEEL"])
 
 
-SMPLX_LANDMARK_INDICES = {"HEAD_TOP": 8976,
-                    "HEAD_LEFT_TEMPLE": 1980,
-                    "NECK_ADAM_APPLE": 8940, 
-                    "LEFT_HEEL": 8847,
-                    "RIGHT_HEEL": 8635,
+# Stesso concetto del dizionario precedente, ma per la mesh SMPLX, che ha una
+# topologia diversa (10475 vertici invece di 6890): per questo gli indici sono
+# diversi anche per landmark con lo stesso nome. SMPLX qui definisce meno
+# landmark rispetto a SMPL (mancano ad es. "BUTTHOLE" e i landmark in stile
+# CAESAR per il braccio), perché nel progetto le misure per SMPLX sono un
+# sottoinsieme di quelle disponibili per SMPL (vedi measurement_definitions.py).
+SMPLX_LANDMARK_INDICES = {"HEAD_TOP": 8976,          # vertice sulla sommità della testa
+                    "HEAD_LEFT_TEMPLE": 1980,         # vertice sulla tempia sinistra
+                    "NECK_ADAM_APPLE": 8940,          # vertice sul "pomo d'Adamo" (gola)
+                    "LEFT_HEEL": 8847,                # vertice sul tallone sinistro
+                    "RIGHT_HEEL": 8635,               # vertice sul tallone destro
                     "LEFT_NIPPLE": 3572,
                     "RIGHT_NIPPLE": 8340,
 
@@ -65,5 +88,7 @@ SMPLX_LANDMARK_INDICES = {"HEAD_TOP": 8976,
                     "LEFT_ANKLE": 5880
                     }
 
-SMPLX_LANDMARK_INDICES["HEELS"] = (SMPLX_LANDMARK_INDICES["LEFT_HEEL"], 
+# Come per SMPL: voce "derivata" aggiunta dopo il dizionario, tupla con gli
+# indici dei due talloni (sinistro, destro), usata per le misure di altezza.
+SMPLX_LANDMARK_INDICES["HEELS"] = (SMPLX_LANDMARK_INDICES["LEFT_HEEL"],
                                   SMPLX_LANDMARK_INDICES["RIGHT_HEEL"])
