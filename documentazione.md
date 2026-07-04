@@ -84,3 +84,19 @@ Il menu **Texture** (sempre nella sezione Avatar Preset) applica al corpo SMPL u
 - La cartella `unity/` contiene gli script C# (`AvatarController`, `UIManager`, `AvatarPresets`, `FitServiceClient`) che replicano l'interfaccia in Unity sopra il pacchetto ufficiale **SMPL-X for Unity** di MPI, con aggiornamento della forma **in tempo reale** tramite blendshapes; i preset sono letti dallo **stesso `presets.json`** dell'app Python. Poiché gli spazi di forma di SMPL e SMPL-X non sono compatibili, `build_presets.py` calcola per ogni preset anche la variante `betas_smplx` usata da Unity.
 - Come nella GUI Python, **l'utente definisce l'avatar inserendo le misure in cm**: il bottone *Fit to Measurements* invia le misure al server locale `avatar_server.py` (root del repo, avvio con `python avatar_server.py`), che riusa **esattamente** il misuratore geometrico `MeasureBody` e l'ottimizzatore L-BFGS-B condivisi in `fitting.py` e risponde con le betas e l'errore residuo. Lo stesso server calcola le *Current Measurements* reali del corpo corrente mostrate in Unity (endpoint `POST /measure`, usato anche al movimento degli slider). Questa architettura garantisce che input antropometrico e avatar siano coerenti in entrambe le applicazioni, senza duplicare la logica in C#.
 - **File > Save Model Params** salva, accanto al file joblib, anche un **JSON portabile** (`model_type`, `gender`, `betas`, misure correnti, eventuale `preset_id`), caricabile in Unity con "Load JSON". Setup completo in `unity/README.md`.
+
+---
+
+## 5. Note sul Modello Matematico delle Espressioni (FLAME / SMPL-X)
+
+Il modello SMPL-X integra il modello facciale **FLAME**, che permette la deformazione del viso tramite blendshapes definiti statisticamente.
+
+A differenza dei tradizionali sistemi di animazione facciale (come le *Action Units* del sistema FACS o gli *ARKit blendshapes* di Apple), che cercano di isolare il movimento di singoli muscoli (es. "solleva solo l'angolo destro del labbro"), i parametri di espressione di SMPL-X (identificati comunemente come *Exp 0, Exp 1...*) rappresentano le **Componenti Principali (PCA)** estratte dall'analisi di migliaia di scansioni 3D di volti umani reali.
+
+Questo significa che l'algoritmo matematico ha catturato la **co-occorrenza naturale** dei movimenti facciali umani. Di conseguenza:
+- Modificando un singolo parametro (es. lo slider che abbiamo rinominato in "Sorriso / Broncio"), non si muoveranno unicamente le labbra, ma verranno coinvolte anche le guance (che si sollevano) e gli occhi (che tendono a socchiudersi leggermente).
+- Un parametro legato all'apertura della bocca (es. "Sorpresa") modificherà contemporaneamente la mandibola, l'apertura oculare e l'inclinazione delle sopracciglia.
+
+Questo approccio olistico e statistico, pur apparendo meno "granulare" nel controllo del singolo dettaglio muscolare, garantisce che ogni combinazione di parametri generi sempre espressioni **anatomicamente plausibili e realistiche**, evitando distorsioni innaturali (i cosiddetti "artefatti") tipiche dei sistemi a blendshape isolati tradizionali. 
+
+Le etichette descrittive assegnate agli slider nella UI indicano quindi semplicemente l'**effetto visivo dominante** associato a ciascuna Componente Principale, fungendo da guida per l'utente finale.

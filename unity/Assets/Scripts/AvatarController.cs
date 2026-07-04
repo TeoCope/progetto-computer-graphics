@@ -22,6 +22,7 @@ public class AvatarController : MonoBehaviour
 
     private SMPLX _current;
     private string _currentGender = "male";
+    private Texture2D _currentTexture = null;
 
     void Start()
     {
@@ -46,6 +47,12 @@ public class AvatarController : MonoBehaviour
 
         if (maleAvatar != null) maleAvatar.gameObject.SetActive(!isFemale);
         if (femaleAvatar != null) femaleAvatar.gameObject.SetActive(isFemale);
+
+        // Riapplica la texture corrente, se ne avevamo caricata una
+        if (_currentTexture != null)
+        {
+            ApplyTextureToCurrent(_currentTexture);
+        }
     }
 
     // Applica un intero vettore di betas all'avatar corrente.
@@ -71,7 +78,6 @@ public class AvatarController : MonoBehaviour
         return _current.betas[index];
     }
 
-    // Riporta l'avatar corrente al corpo "medio" (tutte le betas a zero).
     public void ResetShape()
     {
         if (_current == null) return;
@@ -80,11 +86,66 @@ public class AvatarController : MonoBehaviour
         RefreshShape();
     }
 
+    // Modifica una singola espressione (usato dagli slider della UI).
+    public void SetExpression(int index, float value)
+    {
+        if (_current == null || index < 0 || index >= SMPLX.NUM_EXPRESSIONS) return;
+        _current.expressions[index] = value;
+        _current.SetExpressions();
+    }
+
+    // Azzera tutte le espressioni facciali.
+    public void ResetExpressions()
+    {
+        if (_current == null) return;
+        for (int i = 0; i < SMPLX.NUM_EXPRESSIONS; i++)
+            _current.expressions[i] = 0f;
+        _current.SetExpressions();
+    }
+
+    public float GetExpression(int index)
+    {
+        if (_current == null || index < 0 || index >= SMPLX.NUM_EXPRESSIONS) return 0f;
+        return _current.expressions[index];
+    }
+
     // Propaga le betas correnti alla mesh: blendshapes + scheletro + appoggio a terra.
     private void RefreshShape()
     {
         _current.SetBetaShapes();
         _current.UpdateJointPositions();
-        _current.SnapToGroundPlane();
+        // _current.SnapToGroundPlane();
+    }
+
+    // Carica un'immagine dal disco e l'applica al modello corrente
+    public void SetTexture(string imagePath)
+    {
+        if (string.IsNullOrEmpty(imagePath) || !System.IO.File.Exists(imagePath))
+        {
+            _currentTexture = null;
+            // Rimuoviamo la texture se passiamo un path vuoto
+            ApplyTextureToCurrent(null);
+            return;
+        }
+
+        byte[] fileData = System.IO.File.ReadAllBytes(imagePath);
+        Texture2D tex = new Texture2D(2, 2);
+        if (tex.LoadImage(fileData))
+        {
+            _currentTexture = tex;
+            ApplyTextureToCurrent(_currentTexture);
+        }
+    }
+
+    // Applica una texture specifica al materiale della mesh corrente
+    private void ApplyTextureToCurrent(Texture2D tex)
+    {
+        if (_current == null) return;
+
+        SkinnedMeshRenderer renderer = _current.GetComponentInChildren<SkinnedMeshRenderer>();
+        if (renderer != null && renderer.material != null)
+        {
+            renderer.material.SetTexture("_MainTex", tex);
+        }
     }
 }

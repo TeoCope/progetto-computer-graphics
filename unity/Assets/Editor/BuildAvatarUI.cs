@@ -30,6 +30,21 @@ public static class BuildAvatarUI
         "Lunghezza braccio", "Larghezza spalle",
     };
 
+    // Nomi intuitivi (approssimati in base alle componenti principali di FLAME/SMPL-X)
+    private static readonly string[] ExpressionLabels =
+    {
+        "Apertura Bocca",
+        "Sorriso / Broncio",
+        "Labbra in fuori",
+        "Sopracciglia",
+        "Occhi / Sguardo",
+        "Guance",
+        "Corrucciato",
+        "Smorfia",
+        "Sorpresa",
+        "Disgusto"
+    };
+
     private static DefaultControls.Resources s_Resources;
 
     private static DefaultControls.Resources Resources
@@ -98,65 +113,83 @@ public static class BuildAvatarUI
         vlg.childForceExpandWidth = true;
         vlg.childForceExpandHeight = false;
         vlg.childControlWidth = true;
-        vlg.childControlHeight = false;
+        vlg.childControlHeight = true;
         vlg.spacing = 6;
         vlg.padding = new RectOffset(8, 8, 8, 8);
         content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
         // --- Preset e genere ---
         AddSectionHeader(content, "Preset");
-        var presetDropdown = AddFieldRow(content, "Preset", DefaultControls.CreateDropdown(Resources)).GetComponent<Dropdown>();
+        var presetGO = DefaultControls.CreateDropdown(Resources);
+        FixUIControl(presetGO);
+        var presetDropdown = AddFieldRow(content, "Preset", presetGO).GetComponent<Dropdown>();
+
         var presetDescriptionText = AddPlainText(content, "", 40);
-        var genderDropdown = AddFieldRow(content, "Genere", DefaultControls.CreateDropdown(Resources)).GetComponent<Dropdown>();
+
+        var genderGO = DefaultControls.CreateDropdown(Resources);
+        FixUIControl(genderGO);
+        var genderDropdown = AddFieldRow(content, "Genere", genderGO).GetComponent<Dropdown>();
+
+        var textureGO = DefaultControls.CreateDropdown(Resources);
+        FixUIControl(textureGO);
+        var textureDropdown = AddFieldRow(content, "Texture", textureGO).GetComponent<Dropdown>();
 
         // --- Misure target ---
-        AddSectionHeader(content, "Misure target (cm)");
+        AddSectionHeader(content, "Misure desiderate (cm)");
         var measurementInputFields = new List<InputField>();
         foreach (var label in MeasurementLabels)
         {
             var fieldGO = DefaultControls.CreateInputField(Resources);
+            FixUIControl(fieldGO);
             var field = fieldGO.GetComponent<InputField>();
             field.contentType = InputField.ContentType.DecimalNumber;
             AddFieldRow(content, label, fieldGO);
             measurementInputFields.Add(field);
         }
-        var fitButton = AddButton(content, "Fit to Measurements");
+        var fitButton = AddButton(content, "Adatta alle Misure", 32, new Color(0.2f, 0.6f, 0.2f), Color.white);
 
         // --- Misure attuali ---
         AddSectionHeader(content, "Misure attuali");
         var measurementsText = AddPlainText(content, "", 160);
 
-        // --- Betas (avanzato) ---
-        AddSectionHeader(content, "Controlli avanzati (betas)");
-        var betaSliders = new List<Slider>();
-        var betaValueLabels = new List<Text>();
+        // --- Espressioni Facciali ---
+        AddSectionHeader(content, "Espressioni Facciali");
+        var expressionSliders = new List<Slider>();
+        var expressionValueLabels = new List<Text>();
         for (int i = 0; i < 10; i++)
         {
             var sliderGO = DefaultControls.CreateSlider(Resources);
             var slider = sliderGO.GetComponent<Slider>();
-            slider.minValue = -5f;
-            slider.maxValue = 5f;
-            slider.value = 0f;
-            var valueLabel = AddSliderRow(content, $"Beta {i}", sliderGO);
-            betaSliders.Add(slider);
-            betaValueLabels.Add(valueLabel);
+            expressionSliders.Add(slider);
+            var valueLabel = AddSliderRow(content, ExpressionLabels[i], sliderGO);
+            expressionValueLabels.Add(valueLabel);
         }
-        var resetButton = AddButton(content, "Reset");
 
-        // --- Carica JSON ---
-        AddSectionHeader(content, "Carica JSON esportato");
-        var jsonInputGO = DefaultControls.CreateInputField(Resources);
-        var jsonPathInput = jsonInputGO.GetComponent<InputField>();
-        AddFieldRow(content, "Percorso", jsonInputGO);
-        var loadJsonButton = AddButton(content, "Load JSON");
+        // --- Animazioni (SUP) ---
+        AddSectionHeader(content, "Animazioni (SUP)");
+        var animDropdownGO = DefaultControls.CreateDropdown(Resources);
+        FixUIControl(animDropdownGO);
+        var animationDropdown = AddFieldRow(content, "Seleziona", animDropdownGO).GetComponent<Dropdown>();
+        
+        // Stato iniziale "fermo": a runtime UIManager lo alterna con "Ferma"/rosso
+        var playAnimationButton = AddButton(content, "Riproduci", 32, new Color(0.2f, 0.6f, 0.3f), Color.white);
+
+        // --- Reset ---
+        var resetButton = AddButton(content, "Reimposta", 32, new Color(0.8f, 0.3f, 0.3f), Color.white);
+
+        // --- Le sezioni Betas e Carica JSON sono state rimosse ---
+        var betaSliders = new List<Slider>();
+        var betaValueLabels = new List<Text>();
+        InputField jsonPathInput = null;
+        Button loadJsonButton = null;
 
         // --- Stato ---
         AddSectionHeader(content, "Stato");
         var statusText = AddPlainText(content, "", 60);
 
-        WireUIManager(presetDropdown, presetDescriptionText, genderDropdown,
+        WireUIManager(presetDropdown, presetDescriptionText, genderDropdown, textureDropdown,
             measurementInputFields, fitButton, measurementsText,
-            betaSliders, betaValueLabels, resetButton, jsonPathInput, loadJsonButton, statusText);
+            betaSliders, betaValueLabels, expressionSliders, expressionValueLabels, resetButton, jsonPathInput, loadJsonButton, statusText, animationDropdown, playAnimationButton);
 
         Selection.activeGameObject = canvasGO;
         EditorUtility.DisplayDialog("Avatar UI",
@@ -165,10 +198,10 @@ public static class BuildAvatarUI
             "README) e rilancia questo comando per il collegamento automatico.", "OK");
     }
 
-    private static void WireUIManager(Dropdown presetDropdown, Text presetDescriptionText, Dropdown genderDropdown,
+    private static void WireUIManager(Dropdown presetDropdown, Text presetDescriptionText, Dropdown genderDropdown, Dropdown textureDropdown,
         List<InputField> measurementInputFields, Button fitButton, Text measurementsText,
-        List<Slider> betaSliders, List<Text> betaValueLabels, Button resetButton,
-        InputField jsonPathInput, Button loadJsonButton, Text statusText)
+        List<Slider> betaSliders, List<Text> betaValueLabels, List<Slider> expressionSliders, List<Text> expressionValueLabels, Button resetButton,
+        InputField jsonPathInput, Button loadJsonButton, Text statusText, Dropdown animationDropdown, Button playAnimationButton)
     {
         var uiManager = Object.FindObjectOfType<UIManager>();
         if (uiManager == null)
@@ -183,6 +216,7 @@ public static class BuildAvatarUI
         so.FindProperty("presetDropdown").objectReferenceValue = presetDropdown;
         so.FindProperty("presetDescriptionText").objectReferenceValue = presetDescriptionText;
         so.FindProperty("genderDropdown").objectReferenceValue = genderDropdown;
+        so.FindProperty("textureDropdown").objectReferenceValue = textureDropdown;
 
         var measFieldsProp = so.FindProperty("measurementFields");
         measFieldsProp.arraySize = MeasurementKeys.Length;
@@ -206,10 +240,30 @@ public static class BuildAvatarUI
         for (int i = 0; i < betaValueLabels.Count; i++)
             labelsProp.GetArrayElementAtIndex(i).objectReferenceValue = betaValueLabels[i];
 
+        var exprSlidersProp = so.FindProperty("expressionSliders");
+        exprSlidersProp.arraySize = expressionSliders.Count;
+        for (int i = 0; i < expressionSliders.Count; i++)
+            exprSlidersProp.GetArrayElementAtIndex(i).objectReferenceValue = expressionSliders[i];
+
+        var exprLabelsProp = so.FindProperty("expressionValueLabels");
+        exprLabelsProp.arraySize = expressionValueLabels.Count;
+        for (int i = 0; i < expressionValueLabels.Count; i++)
+            exprLabelsProp.GetArrayElementAtIndex(i).objectReferenceValue = expressionValueLabels[i];
+
         so.FindProperty("resetButton").objectReferenceValue = resetButton;
         so.FindProperty("jsonPathInput").objectReferenceValue = jsonPathInput;
         so.FindProperty("loadJsonButton").objectReferenceValue = loadJsonButton;
         so.FindProperty("statusText").objectReferenceValue = statusText;
+
+        so.FindProperty("animationDropdown").objectReferenceValue = animationDropdown;
+        so.FindProperty("playAnimationButton").objectReferenceValue = playAnimationButton;
+        
+        // Collega in automatico anche l'Animation Bridge (cercandolo sullo stesso GameObject dell'UIManager)
+        var bridge = uiManager.GetComponent<SUPAnimationBridge>();
+        if (bridge != null)
+        {
+            so.FindProperty("animationBridge").objectReferenceValue = bridge;
+        }
 
         so.ApplyModifiedProperties();
         EditorUtility.SetDirty(uiManager);
@@ -217,6 +271,20 @@ public static class BuildAvatarUI
     }
 
     // ------- Helper di layout -------
+
+    private static void FixUIControl(GameObject control)
+    {
+        foreach (var t in control.GetComponentsInChildren<Text>(true))
+        {
+            t.verticalOverflow = VerticalWrapMode.Overflow;
+            var rt = t.GetComponent<RectTransform>();
+            if (Mathf.Approximately(rt.anchorMin.y, 0f) && Mathf.Approximately(rt.anchorMax.y, 1f))
+            {
+                rt.offsetMin = new Vector2(rt.offsetMin.x, 2);
+                rt.offsetMax = new Vector2(rt.offsetMax.x, -2);
+            }
+        }
+    }
 
     private static void AddSectionHeader(Transform parent, string text)
     {
@@ -242,7 +310,7 @@ public static class BuildAvatarUI
         return t;
     }
 
-    private static GameObject AddFieldRow(Transform parent, string labelText, GameObject control, float rowHeight = 26)
+    private static GameObject AddFieldRow(Transform parent, string labelText, GameObject control, float rowHeight = 22)
     {
         var row = new GameObject("Row_" + labelText, typeof(RectTransform));
         row.transform.SetParent(parent, false);
@@ -299,8 +367,8 @@ public static class BuildAvatarUI
         labelComp.fontSize = 12;
         labelComp.alignment = TextAnchor.MiddleLeft;
         var labelLE = labelGO.AddComponent<LayoutElement>();
-        labelLE.preferredWidth = 60;
-        labelLE.minWidth = 60;
+        labelLE.preferredWidth = 120;
+        labelLE.minWidth = 120;
 
         sliderGO.transform.SetParent(row.transform, false);
         var sliderLE = sliderGO.AddComponent<LayoutElement>();
@@ -321,12 +389,20 @@ public static class BuildAvatarUI
         return valueComp;
     }
 
-    private static Button AddButton(Transform parent, string text, float height = 32)
+    private static Button AddButton(Transform parent, string text, float height = 32, Color? btnColor = null, Color? textColor = null)
     {
         var go = DefaultControls.CreateButton(Resources);
         go.transform.SetParent(parent, false);
         var label = go.GetComponentInChildren<Text>();
-        if (label != null) label.text = text;
+        if (label != null)
+        {
+            label.text = text;
+            if (textColor.HasValue) label.color = textColor.Value;
+        }
+        if (btnColor.HasValue)
+        {
+            go.GetComponent<Image>().color = btnColor.Value;
+        }
         var le = go.AddComponent<LayoutElement>();
         le.preferredHeight = height;
         le.minHeight = height;
