@@ -3,7 +3,12 @@ log/
 logs/
 trash/
 .idea/
-data/
+# data/ contiene modelli e texture non ridistribuibili (licenza MPI):
+# ignoriamo tutto tranne i README che spiegano dove scaricarli
+data/*
+!data/textures
+data/textures/*
+!data/textures/README.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

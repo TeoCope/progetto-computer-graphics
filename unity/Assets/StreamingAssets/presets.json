@@ -1,0 +1,212 @@
+{
+  "presets": [
+    {
+      "id": "male_adult_slim",
+      "label": "Uomo adulto magro",
+      "description": "Uomo adulto con corporatura magra (BMI ~19)",
+      "model_type": "smpl",
+      "gender": "male",
+      "target_measurements": {
+        "height": 178.0,
+        "chest circumference": 88.0,
+        "waist circumference": 74.0,
+        "hip circumference": 90.0,
+        "inside leg height": 80.0
+      },
+      "betas": [
+        -0.0815,
+        1.5485,
+        -2.2633,
+        -2.3434,
+        -1.6303,
+        -2.6013,
+        -1.7341,
+        0.093,
+        0.473,
+        -0.2893
+      ],
+      "achieved_measurements": {
+        "height": 177.84,
+        "chest circumference": 87.18,
+        "waist circumference": 73.65,
+        "hip circumference": 89.78,
+        "inside leg height": 80.59
+      },
+      "betas_smplx": [
+        0.5151,
+        -3.2414,
+        0.457,
+        -0.9956,
+        -2.2805,
+        -0.2715,
+        -1.9525,
+        -2.7812,
+        1.3584,
+        -1.3657
+      ],
+      "achieved_measurements_smplx": {
+        "height": 178.58,
+        "chest circumference": 86.84,
+        "waist circumference": 73.67,
+        "hip circumference": 89.4,
+        "inside leg height": 80.15
+      }
+    },
+    {
+      "id": "male_adult_robust",
+      "label": "Uomo adulto robusto",
+      "description": "Uomo adulto con corporatura robusta (BMI ~29)",
+      "model_type": "smpl",
+      "gender": "male",
+      "target_measurements": {
+        "height": 176.0,
+        "chest circumference": 108.0,
+        "waist circumference": 100.0,
+        "hip circumference": 107.0,
+        "inside leg height": 78.0
+      },
+      "betas": [
+        -0.6222,
+        -1.0525,
+        -3.8266,
+        -1.8259,
+        0.0951,
+        -0.5189,
+        -3.3378,
+        0.1933,
+        1.0075,
+        -1.9072
+      ],
+      "achieved_measurements": {
+        "height": 176.76,
+        "chest circumference": 108.43,
+        "waist circumference": 99.97,
+        "hip circumference": 107.25,
+        "inside leg height": 78.6
+      },
+      "betas_smplx": [
+        0.14,
+        -0.3024,
+        0.4819,
+        -0.7451,
+        -0.8461,
+        0.0357,
+        -1.038,
+        -0.4112,
+        1.1141,
+        -0.7791
+      ],
+      "achieved_measurements_smplx": {
+        "height": 177.3,
+        "chest circumference": 106.98,
+        "waist circumference": 100.4,
+        "hip circumference": 106.93,
+        "inside leg height": 77.39
+      }
+    },
+    {
+      "id": "female_young_normal",
+      "label": "Donna giovane normopeso",
+      "description": "Donna giovane con corporatura normopeso (BMI ~21)",
+      "model_type": "smpl",
+      "gender": "female",
+      "target_measurements": {
+        "height": 165.0,
+        "chest circumference": 89.0,
+        "waist circumference": 70.0,
+        "hip circumference": 96.0,
+        "inside leg height": 75.0
+      },
+      "betas": [
+        0.0406,
+        1.1909,
+        -2.3487,
+        1.4305,
+        -1.0209,
+        0.9805,
+        0.9172,
+        1.7977,
+        -0.5817,
+        0.7518
+      ],
+      "achieved_measurements": {
+        "height": 164.07,
+        "chest circumference": 88.87,
+        "waist circumference": 70.77,
+        "hip circumference": 95.95,
+        "inside leg height": 75.3
+      },
+      "betas_smplx": [
+        0.0427,
+        -1.4527,
+        -0.608,
+        -0.4251,
+        -0.5324,
+        0.054,
+        -0.6973,
+        -0.5485,
+        0.026,
+        0.2696
+      ],
+      "achieved_measurements_smplx": {
+        "height": 166.72,
+        "chest circumference": 87.82,
+        "waist circumference": 70.18,
+        "hip circumference": 96.42,
+        "inside leg height": 74.58
+      }
+    },
+    {
+      "id": "female_adult_robust",
+      "label": "Donna adulta robusta",
+      "description": "Donna adulta con corporatura robusta (BMI ~29)",
+      "model_type": "smpl",
+      "gender": "female",
+      "target_measurements": {
+        "height": 162.0,
+        "chest circumference": 104.0,
+        "waist circumference": 92.0,
+        "hip circumference": 112.0,
+        "inside leg height": 72.0
+      },
+      "betas": [
+        -0.179,
+        -1.1501,
+        -1.7949,
+        1.7934,
+        -0.034,
+        -0.2543,
+        -1.522,
+        0.9394,
+        0.363,
+        0.3278
+      ],
+      "achieved_measurements": {
+        "height": 160.37,
+        "chest circumference": 103.5,
+        "waist circumference": 92.9,
+        "hip circumference": 112.38,
+        "inside leg height": 71.51
+      },
+      "betas_smplx": [
+        -0.3396,
+        0.3655,
+        -0.8107,
+        -0.5401,
+        -0.5404,
+        0.4363,
+        -0.577,
+        -0.1852,
+        -0.635,
+        0.4055
+      ],
+      "achieved_measurements_smplx": {
+        "height": 161.85,
+        "chest circumference": 104.8,
+        "waist circumference": 90.67,
+        "hip circumference": 111.79,
+        "inside leg height": 71.21
+      }
+    }
+  ]
+}
